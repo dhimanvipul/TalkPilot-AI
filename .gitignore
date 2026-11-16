@@ -52,3 +52,4 @@ Thumbs.db
 .system_generated/
 tmp/
 temp/
+.vercel/

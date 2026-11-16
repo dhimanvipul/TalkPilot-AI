@@ -4,6 +4,14 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext();
 
+const getServerUrl = () => {
+  if (process.env.REACT_APP_SERVER_URL) return process.env.REACT_APP_SERVER_URL;
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return window.location.origin;
+  }
+  return 'http://localhost:5000';
+};
+
 export const SocketProvider = ({ children }) => {
   const { user } = useAuth();
   const [socket, setSocket] = useState(null);
@@ -14,9 +22,13 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (userId) {
-      const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+      const serverUrl = getServerUrl();
       const newSocket = io(serverUrl, {
-        transports: ['websocket', 'polling']
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000
       });
 
       newSocket.on('connect', () => {

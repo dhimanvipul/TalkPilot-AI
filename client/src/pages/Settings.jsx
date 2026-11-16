@@ -107,7 +107,9 @@ const Settings = () => {
       if (res.data.success) {
         const audioSrc = res.data.audioBase64
           ? `data:audio/mp3;base64,${res.data.audioBase64}`
-          : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${res.data.audioUrl}`;
+          : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+          ? res.data.audioUrl
+          : `${process.env.REACT_APP_SERVER_URL || 'http://localhost:5000'}${res.data.audioUrl}`;
         const audio = new Audio(audioSrc);
         audio.play().catch(() => {
           setTestAudioError('Audio playback was blocked by browser. Please tap test again.');

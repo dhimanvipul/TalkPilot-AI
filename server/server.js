@@ -14,31 +14,75 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO
+// Dynamic CORS configuration for Vercel, localhost, and custom domains
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (process.env.NODE_ENV !== 'production') return true;
+  if (origin.endsWith('.vercel.app')) return true;
+  if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return true;
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) return true;
+  return false;
+};
+
+// Initialize Socket.IO with WebSocket + polling support for Vercel Fluid Compute
 const io = new Server(server, {
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
-  }
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // Save io instance to app
 app.set('io', io);
 
-// Connect to MongoDB
-connectDB();
-
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000', credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
+// URL normalization: ensure /api prefix is present for all non-socket routes handled by Express
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api') && !req.url.startsWith('/socket.io')) {
+    req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+  }
+  next();
+});
+
+// Ensure MongoDB connection is active on serverless requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('[DB Middleware] Database connection error:', err.message);
+    res.status(503).json({
+      success: false,
+      message: 'Database temporarily unavailable. Please verify MONGO_URI in Vercel settings.'
+    });
+  }
+});
+
+// Rate limiting (adjusted for serverless environment)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500, // 500 requests per 15 mins
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests from this IP, please try again later.' }
@@ -140,18 +184,17 @@ app.use('/api/webhooks', require('./routes/webhookRoutes'));
 app.use('/api/tts', require('./routes/ttsRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 
-// Root endpoint for browser navigation
-app.get('/', (req, res) => {
+// Root endpoint for browser navigation & health checks
+app.get('/api', (req, res) => {
   res.json({
     status: 'ok',
     appName: 'TalkPilot AI Server API',
-    message: 'Backend server is running smoothly. Visit /api/health for detailed status.',
+    message: 'Backend server is running smoothly on Vercel.',
     callingMode: process.env.CALLING_MODE || 'mock',
     clientUrl: process.env.CLIENT_URL || 'http://localhost:3000'
   });
 });
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -164,11 +207,18 @@ app.get('/api/health', (req, res) => {
 // Global error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`=======================================================`);
-  console.log(` TalkPilot AI Server running on port ${PORT}`);
-  console.log(` Mode: ${process.env.NODE_ENV || 'development'}`);
-  console.log(` Calling Mode: ${process.env.CALLING_MODE || 'mock'}`);
-  console.log(`=======================================================`);
-});
+// Only listen directly when not running in a serverless environment (e.g. Vercel)
+if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`=======================================================`);
+    console.log(` TalkPilot AI Server running on port ${PORT}`);
+    console.log(` Mode: ${process.env.NODE_ENV || 'development'}`);
+    console.log(` Calling Mode: ${process.env.CALLING_MODE || 'mock'}`);
+    console.log(`=======================================================`);
+  });
+}
+
+server.app = app;
+server.io = io;
+module.exports = server;

@@ -273,7 +273,9 @@ const LiveCallModal = ({ callId, onClose }) => {
           ? `data:audio/mp3;base64,${data.audioBase64}`
           : data.audioUrl.startsWith('http')
           ? data.audioUrl
-          : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${data.audioUrl}`;
+          : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+          ? data.audioUrl
+          : `${process.env.REACT_APP_SERVER_URL || 'http://localhost:5000'}${data.audioUrl}`;
 
         const audio = new Audio(audioSrc);
         activeAudioRef.current = audio;

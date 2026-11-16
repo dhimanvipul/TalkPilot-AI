@@ -10,8 +10,7 @@
     "react-router-dom": "^6.23.1",
     "react-scripts": "5.0.1",
     "recharts": "^2.12.7",
-    "socket.io-client": "^4.7.5",
-    "talkpilot-ai-root": "file:.."
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.19",
