@@ -1,0 +1,16 @@
+{
+  "name": "talkpilot-ai-root",
+  "version": "1.0.0",
+  "description": "TalkPilot AI - Full-stack AI Outbound Calling Platform",
+  "private": true,
+  "scripts": {
+    "install-all": "npm install && npm install --prefix server && npm install --prefix client",
+    "server": "npm start --prefix server",
+    "client": "npm start --prefix client",
+    "dev": "concurrently --kill-others-on-fail \"npm run server\" \"npm run client\"",
+    "seed": "npm run seed --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
