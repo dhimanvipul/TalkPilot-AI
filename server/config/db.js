@@ -44,10 +44,25 @@ const connectDB = async () => {
 
     if (uri) {
       console.log(`Connecting to MongoDB Atlas / Remote Cluster...`);
-      cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {
-        console.log('MongoDB Connected Successfully (Cloud/Atlas)');
-        return mongooseInstance;
-      });
+      cached.promise = mongoose.connect(uri, opts)
+        .then((mongooseInstance) => {
+          console.log('MongoDB Connected Successfully (Cloud/Atlas)');
+          return mongooseInstance;
+        })
+        .catch(async (err) => {
+          cached.promise = null;
+          if (process.env.NODE_ENV === 'production') {
+            throw err;
+          }
+          console.warn(`\n[MongoDB Atlas Warning] Connection blocked: ${err.message}`);
+          console.warn('-> Your current IP address is not whitelisted in MongoDB Atlas Network Access.');
+          console.warn('-> In MongoDB Atlas -> Network Access, add 0.0.0.0/0 (or your current IP).');
+          console.warn('-> Falling back to local MongoMemoryServer for development...\n');
+          const { MongoMemoryServer } = require('mongodb-memory-server');
+          const mongoMemoryServer = await MongoMemoryServer.create();
+          const memUri = mongoMemoryServer.getUri();
+          return mongoose.connect(memUri, opts);
+        });
     } else {
       // Local fallback for offline/development environment
       if (process.env.NODE_ENV === 'production') {
