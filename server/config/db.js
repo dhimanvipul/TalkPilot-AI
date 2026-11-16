@@ -1,4 +1,12 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
+
+// Fix for Node.js SRV record DNS resolution on Windows / certain ISPs
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+} catch (e) {
+  // Silent fallback in environments where custom DNS servers cannot be set
+}
 
 // Global cache across serverless function invocations
 let cached = global.mongoose;
@@ -13,7 +21,17 @@ const connectDB = async () => {
     return cached.conn;
   }
 
-  const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
+  let uri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+  if (uri && uri.startsWith('mongodb+srv://')) {
+    // Ensure database name is explicitly specified so collections aren't dumped into default 'test' db
+    const baseWithoutQuery = uri.split('?')[0];
+    if (baseWithoutQuery.endsWith('.mongodb.net') || baseWithoutQuery.endsWith('.mongodb.net/')) {
+      const cleanBase = baseWithoutQuery.replace(/\/+$/, '');
+      const queryString = uri.includes('?') ? uri.substring(uri.indexOf('?')) : '?retryWrites=true&w=majority';
+      uri = `${cleanBase}/talkpilot${queryString}`;
+    }
+  }
 
   if (!cached.promise) {
     const opts = {

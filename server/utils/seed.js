@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 const connectDB = require('../config/db');
 
 dotenv.config({ path: '../.env' });
-if (!process.env.MONGO_URI) {
+if (!process.env.MONGO_URI && !process.env.MONGODB_URI) {
   dotenv.config({ path: '.env' });
 }
 
